@@ -25,7 +25,7 @@ adapter_settings = {
     # * ':sim' opens a simple device simulation (no actual serial port required)
     'adapter_device': ':sim',
     #'adapter_device': '/dev/ttyUSB0',
-    
+
     # hardware settings - ignored when using simulation.
     # see also bsbgateway/serial_source.py
     # baud rate - 4800 for BSB bus

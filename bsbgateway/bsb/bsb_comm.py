@@ -38,26 +38,26 @@ MAX_PENDING_REQUESTS = 50
 class BsbComm(EventSource):
     '''simplifies the conversion between serial data and BsbTelegrams.
     BsbComm represents one or multiple BSB bus endpoint(s). You can
-    send and receive BsbTelegrams. 
-    
+    send and receive BsbTelegrams.
+
     Wrapper around the serial source: instead of raw data,
     the parsed telegrams are returned. Event payload is a list of tuples:
         [(which_address, BsbTelegram), (which_address, BsbTelegram) ...].
     which address gives the index of the bus address where the telegram came in
     (0 for first) - None if the telegram was not intended for this endpoint.
-    
+
     Functions for sending:
         * send_get: sends a telegram requesting the disp_id's value
         * send_set: sends a telegram setting the value for disp_id.
-        
-    Also supports sniffing (i.e. catching messages for other endpoints). 
+
+    Also supports sniffing (i.e. catching messages for other endpoints).
     Set sniffmode=True for this. Can be toggled while running.
     '''
     bus_addresses = []
     # set to true to return ALL telegrams going over the bus (not just those meant for me)
     sniffmode = False
     _leftover_data = b''
-    
+
     def __init__(o, name, adapter_settings, device, first_bus_address, n_addresses=1, sniffmode=False, min_wait_s=0.1):
         if (first_bus_address<=10):
             raise ValueError("First bus address must be >10.")
@@ -81,7 +81,7 @@ class BsbComm(EventSource):
         o.sniffmode = sniffmode
         o.min_wait_s = min_wait_s
         o._do_throttled = None
-        
+
     def run(o, putevent_func):
         def convert_data(name, data):
             # data = timestamp,bytes
@@ -91,7 +91,7 @@ class BsbComm(EventSource):
             o._do_throttled = do_throttled
             o.serial.run(convert_data)
         o._do_throttled = None
-        
+
     def process_received_data(o, timestamp, data):
         '''timestamp: unix timestamp
         data: incoming data (byte string) from the serial port
@@ -161,7 +161,7 @@ class BsbComm(EventSource):
         if not o._do_throttled:
             raise IOError("Cannot send: Not running")
         o._do_throttled(lambda: o.serial.write(data))
-        
+
 
 @contextmanager
 def throttle_factory(min_wait_s = 0.1, max_pending_requests=MAX_PENDING_REQUESTS):
