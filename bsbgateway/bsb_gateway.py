@@ -43,9 +43,9 @@ from .bsb.bsb_field import EncodeError, ValidateError
 class BsbGateway(object):
     _hub = None
 
-    def __init__(o, adapter_settings, device, bus_address, loggers, atomic_interval, web_interface_port=8080, web_dashboard=None, cmd_interface_enable=True, min_wait_s=0.1):
+    def __init__(o, comm_interface, device, bus_address, loggers, atomic_interval, web_interface_port=8080, web_dashboard=None, cmd_interface_enable=True, min_wait_s=0.1):
         o.device = device
-        o._bsbcomm = BsbComm('bsb', adapter_settings, device, bus_address, n_addresses=3, min_wait_s=min_wait_s)
+        o._bsbcomm = BsbComm('bsb', comm_interface, device, bus_address, n_addresses=3, min_wait_s=min_wait_s)
         o.loggers = loggers
         o.atomic_interval = atomic_interval
         o.web_interface_port = web_interface_port
@@ -187,12 +187,12 @@ def run(config):
             if logger.field.disp_id == disp_id:
                 logger.add_trigger(emailaction, *trigger[1:])
     # legacy config
-    tt = config["adapter_settings"].pop("adapter_type", "")
+    tt = config["comm_interface"]["adapter_settings"].pop("adapter_type", "")
     if tt == "fake":
-        config["adapter_settings"]["adapter_device"] = ":sim"
+        config["comm_interface"]["adapter_settings"]["adapter_device"] = ":sim"
 
     BsbGateway(
-        adapter_settings=config['adapter_settings'],
+        comm_interface=config['comm_interface'],
         device=device,
         bus_address=config['bus_address'],
         loggers=loggers,

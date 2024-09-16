@@ -29,6 +29,7 @@ import time
 # FIXME: importing from parent, this smells bad
 from bsbgateway.event_sources import EventSource
 from bsbgateway.serial_source import SerialSource
+from bsbgateway.network_source import NetworkSource
 
 from .bsb_telegram import BsbTelegram
 from .bsb_field import ValidateError, EncodeError
@@ -40,7 +41,7 @@ class BsbComm(EventSource):
     BsbComm represents one or multiple BSB bus endpoint(s). You can
     send and receive BsbTelegrams.
 
-    Wrapper around the serial source: instead of raw data,
+    Wrapper around the serial or network source: instead of raw data,
     the parsed telegrams are returned. Event payload is a list of tuples:
         [(which_address, BsbTelegram), (which_address, BsbTelegram) ...].
     which address gives the index of the bus address where the telegram came in
@@ -58,23 +59,38 @@ class BsbComm(EventSource):
     sniffmode = False
     _leftover_data = b''
 
-    def __init__(o, name, adapter_settings, device, first_bus_address, n_addresses=1, sniffmode=False, min_wait_s=0.1):
+    def __init__(o, name, comm_interface, device, first_bus_address, n_addresses=1, sniffmode=False, min_wait_s=0.1):
         if (first_bus_address<=10):
             raise ValueError("First bus address must be >10.")
         if (first_bus_address+n_addresses>127):
             raise ValueError("Last bus address must be <128.")
-        o.serial = SerialSource(
-            name=name,
-            port_num=adapter_settings['adapter_device'],
-            # use sane default values for the rest if not set
-            port_baud=adapter_settings.get('port_baud', 4800),
-            port_stopbits=adapter_settings.get('port_stopbits', 1),
-            port_parity=adapter_settings.get('port_parity', 'odd'),
-            # Most simple RS232 level converters will deliver inverted bytes.
-            invert_bytes=adapter_settings.get('invert_bytes', True),
-            expect_cts_state=adapter_settings.get('expect_cts_state', None),
-            write_retry_time=adapter_settings.get('write_retry_time', 0.005),
-        )
+
+        if (comm_interface['type'] == 'serial'):
+            adapter_settings = comm_interface['adapter_settings']
+            o.comm_interface = SerialSource(
+                name=name,
+                port_num=adapter_settings['adapter_device'],
+                # use sane default values for the rest if not set
+                port_baud=adapter_settings.get('port_baud', 4800),
+                port_stopbits=adapter_settings.get('port_stopbits', 1),
+                port_parity=adapter_settings.get('port_parity', 'odd'),
+                # Most simple RS232 level converters will deliver inverted bytes.
+                invert_bytes=adapter_settings.get('invert_bytes', True),
+                expect_cts_state=adapter_settings.get('expect_cts_state', None),
+                write_retry_time=adapter_settings.get('write_retry_time', 0.005),
+            )
+        elif (comm_interface['type'] == 'network'):
+            network_settings = comm_interface['network_settings']
+            o.comm_interface = NetworkSource(
+                name = name,
+                host = network_settings['host'],
+                port = network_settings['port'],
+                # Most simple RS232 level converters will deliver inverted bytes, which will be transmitted like that over TCP.
+                invert_bytes = network_settings.get('invert_bytes', True),
+            )
+        else:
+            raise IOError("Invalid comm_interface type")
+
         o.device = device
         o.bus_addresses = range(first_bus_address, first_bus_address+n_addresses)
         o._leftover_data = b''
@@ -89,12 +105,12 @@ class BsbComm(EventSource):
             putevent_func(name, telegrams)
         with throttle_factory(min_wait_s=o.min_wait_s) as do_throttled:
             o._do_throttled = do_throttled
-            o.serial.run(convert_data)
+            o.comm_interface.run(convert_data)
         o._do_throttled = None
 
     def process_received_data(o, timestamp, data):
         '''timestamp: unix timestamp
-        data: incoming data (byte string) from the serial port
+        data: incoming data (byte string) from the comm_interface
         return list of (which_address, telegram)
         if promiscuous=True:
             all telegrams are returned. Telegrams not for me get which_address=None.
@@ -160,7 +176,7 @@ class BsbComm(EventSource):
     def _send_throttled(o, data:bytes):
         if not o._do_throttled:
             raise IOError("Cannot send: Not running")
-        o._do_throttled(lambda: o.serial.write(data))
+        o._do_throttled(lambda: o.comm_interface.write(data))
 
 
 @contextmanager
